@@ -28,7 +28,8 @@
       "permissions": [
         "android.permission.ACTIVITY_RECOGNITION"
       ],
-      "package": "kr.bemarkable.walkmission"
+      "package": "kr.bemarkable.walkmission",
+      "versionCode": 2
     },
     "plugins": [
       [
@@ -39,9 +40,6 @@
         }
       ]
     ],
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
     "extra": {
       "eas": {
         "projectId": "500823fa-dfbd-4cf3-a3f0-9b267cd5a535"
