@@ -49,7 +49,7 @@ export const useStepStore = create<StepState>()(
       },
 
       saveTodayRecord: () => {
-        const { todaySteps, dailyRecords } = get();
+        const { todaySteps, dailyRecords = [] } = get();
         if (todaySteps === 0) return;
         const record: DailyRecord = { date: todayStr(), steps: todaySteps };
         const filtered = dailyRecords.filter((r) => r.date !== todayStr());
@@ -58,7 +58,7 @@ export const useStepStore = create<StepState>()(
       },
 
       getWeeklySteps: () => {
-        const { dailyRecords, todaySteps } = get();
+        const { dailyRecords = [], todaySteps } = get();
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
         const weekStr = weekAgo.toISOString().split("T")[0];
@@ -72,6 +72,16 @@ export const useStepStore = create<StepState>()(
     {
       name: "step-storage",
       storage: createJSONStorage(() => mmkvStorage),
+      migrate: (persisted: any) => {
+        // weeklyRecords → dailyRecords 마이그레이션
+        if (persisted?.weeklyRecords && !persisted?.dailyRecords) {
+          persisted.dailyRecords = persisted.weeklyRecords;
+          delete persisted.weeklyRecords;
+        }
+        if (!persisted?.dailyRecords) persisted.dailyRecords = [];
+        return persisted;
+      },
+      version: 1,
     }
   )
 );

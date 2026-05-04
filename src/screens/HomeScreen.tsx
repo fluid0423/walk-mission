@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { View, Text, ScrollView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pedometer } from "expo-sensors";
-import { InterstitialAd, AdEventType, TestIds } from "react-native-google-mobile-ads";
+import { InterstitialAd, AdEventType } from "react-native-google-mobile-ads";
 import CircleProgress from "../components/CircleProgress";
 import AppBannerAd from "../components/BannerAd";
 import { useStepStore } from "../store/useStepStore";
@@ -17,7 +17,7 @@ export default function HomeScreen() {
   const { checkAndResetMissions, updateMissionProgress, claimMission } = useMissionStore();
 
   const interstitial = useRef(
-    InterstitialAd.createForAdRequest(TestIds.INTERSTITIAL)
+    InterstitialAd.createForAdRequest("ca-app-pub-9386782255677460/4756294381")
   );
   const baseStepsRef = useRef(0);
 
