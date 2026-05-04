@@ -16,15 +16,16 @@ interface StepState {
   dailyGoal: number;
   totalPoints: number;
   lastActiveDate: string;
-  weeklyRecords: DailyRecord[];
+  dailyRecords: DailyRecord[];
   setTodaySteps: (steps: number) => void;
   setDailyGoal: (goal: number) => void;
   addPoints: (points: number) => void;
   checkAndResetForNewDay: () => void;
   saveTodayRecord: () => void;
+  getWeeklySteps: () => number;
 }
 
-const today = () => new Date().toDateString();
+const todayStr = () => new Date().toISOString().split("T")[0]; // YYYY-MM-DD
 
 export const useStepStore = create<StepState>()(
   persist(
@@ -32,30 +33,40 @@ export const useStepStore = create<StepState>()(
       todaySteps: 0,
       dailyGoal: 10000,
       totalPoints: 0,
-      lastActiveDate: today(),
-      weeklyRecords: [],
+      lastActiveDate: todayStr(),
+      dailyRecords: [],
 
       setTodaySteps: (steps) => set({ todaySteps: steps }),
-
       setDailyGoal: (goal) => set({ dailyGoal: goal }),
-
-      addPoints: (points) =>
-        set((s) => ({ totalPoints: s.totalPoints + points })),
+      addPoints: (points) => set((s) => ({ totalPoints: s.totalPoints + points })),
 
       checkAndResetForNewDay: () => {
         const { lastActiveDate } = get();
-        if (today() !== lastActiveDate) {
+        if (todayStr() !== lastActiveDate) {
           get().saveTodayRecord();
-          set({ todaySteps: 0, lastActiveDate: today() });
+          set({ todaySteps: 0, lastActiveDate: todayStr() });
         }
       },
 
       saveTodayRecord: () => {
-        const { todaySteps, weeklyRecords } = get();
-        const record: DailyRecord = { date: today(), steps: todaySteps };
-        const filtered = weeklyRecords.filter((r) => r.date !== today());
-        const updated = [...filtered, record].slice(-7);
-        set({ weeklyRecords: updated });
+        const { todaySteps, dailyRecords } = get();
+        if (todaySteps === 0) return;
+        const record: DailyRecord = { date: todayStr(), steps: todaySteps };
+        const filtered = dailyRecords.filter((r) => r.date !== todayStr());
+        const updated = [...filtered, record].slice(-90); // 90일 보관
+        set({ dailyRecords: updated });
+      },
+
+      getWeeklySteps: () => {
+        const { dailyRecords, todaySteps } = get();
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const weekStr = weekAgo.toISOString().split("T")[0];
+        return (
+          dailyRecords
+            .filter((r) => r.date >= weekStr)
+            .reduce((sum, r) => sum + r.steps, 0) + todaySteps
+        );
       },
     }),
     {

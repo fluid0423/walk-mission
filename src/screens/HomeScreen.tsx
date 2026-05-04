@@ -8,41 +8,41 @@ import AppBannerAd from "../components/BannerAd";
 import { useStepStore } from "../store/useStepStore";
 import { useMissionStore } from "../store/useMissionStore";
 
-const interstitialAdUnitId = TestIds.INTERSTITIAL;
-
 export default function HomeScreen() {
-  const { todaySteps, dailyGoal, totalPoints, setTodaySteps, addPoints, checkAndResetForNewDay, weeklyRecords } = useStepStore();
+  const {
+    todaySteps, dailyGoal, totalPoints,
+    setTodaySteps, addPoints, checkAndResetForNewDay,
+    getWeeklySteps, saveTodayRecord,
+  } = useStepStore();
   const { checkAndResetMissions, updateMissionProgress, claimMission } = useMissionStore();
 
-  const interstitial = useRef(InterstitialAd.createForAdRequest(interstitialAdUnitId));
+  const interstitial = useRef(
+    InterstitialAd.createForAdRequest(TestIds.INTERSTITIAL)
+  );
   const baseStepsRef = useRef(0);
 
-  const weeklySteps = weeklyRecords.reduce((sum, r) => sum + r.steps, 0) + todaySteps;
   const progress = Math.min(todaySteps / dailyGoal, 1);
-  const progressPercent = Math.round(progress * 100);
+  const weeklySteps = getWeeklySteps();
+  const calories = Math.round(todaySteps * 0.04);
+  const distance = (todaySteps * 0.0007).toFixed(1);
 
   useEffect(() => {
     checkAndResetForNewDay();
     checkAndResetMissions();
-
     interstitial.current.load();
-
-    const unsubscribeLoaded = interstitial.current.addAdEventListener(AdEventType.LOADED, () => {});
-    return () => unsubscribeLoaded();
+    const unsub = interstitial.current.addAdEventListener(AdEventType.LOADED, () => {});
+    return () => unsub();
   }, []);
 
   useEffect(() => {
-    let subscription: ReturnType<typeof Pedometer.watchStepCount>;
-
+    let sub: ReturnType<typeof Pedometer.watchStepCount>;
     (async () => {
       const { status } = await Pedometer.requestPermissionsAsync();
       if (status !== "granted") {
         Alert.alert("권한 필요", "걸음 수 측정을 위해 신체 활동 권한이 필요합니다.");
         return;
       }
-
-      const available = await Pedometer.isAvailableAsync();
-      if (!available) return;
+      if (!(await Pedometer.isAvailableAsync())) return;
 
       const start = new Date();
       start.setHours(0, 0, 0, 0);
@@ -50,104 +50,127 @@ export default function HomeScreen() {
       baseStepsRef.current = result.steps;
       setTodaySteps(result.steps);
 
-      subscription = Pedometer.watchStepCount((stepResult) => {
-        const total = baseStepsRef.current + stepResult.steps;
-        setTodaySteps(total);
+      sub = Pedometer.watchStepCount((r) => {
+        setTodaySteps(baseStepsRef.current + r.steps);
       });
     })();
-
-    return () => subscription?.remove();
+    return () => sub?.remove();
   }, []);
 
   useEffect(() => {
+    saveTodayRecord();
     const completedIds = updateMissionProgress(todaySteps, weeklySteps);
     completedIds.forEach((id) => {
       const reward = claimMission(id);
       if (reward > 0) {
         addPoints(reward);
-        if (interstitial.current) {
-          try {
-            interstitial.current.show();
-            interstitial.current.load();
-          } catch {}
-        }
+        try { interstitial.current.show(); interstitial.current.load(); } catch {}
       }
     });
   }, [todaySteps]);
 
-  const getMotivationMessage = () => {
-    if (todaySteps === 0) return "오늘도 파이팅! 첫 발을 내딛어봐요 🚀";
-    if (progress < 0.3) return "좋은 시작이에요! 계속 걸어봐요 💪";
-    if (progress < 0.5) return "절반 왔어요! 조금만 더 걸어요 🔥";
-    if (progress < 1.0) return "거의 다 왔어요! 마지막 스퍼트 🏃";
-    return "목표 달성! 오늘 정말 잘하셨어요 🎉";
+  const getGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return "좋은 아침이에요 ☀️";
+    if (h < 18) return "열심히 걷고 있나요? 💪";
+    return "오늘 하루도 수고했어요 🌙";
   };
 
-  const dateStr = new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+  const motivationText = () => {
+    if (todaySteps === 0) return "첫 발을 내딛어봐요";
+    if (progress < 0.5) return `${(dailyGoal - todaySteps).toLocaleString()}보 남았어요`;
+    if (progress < 1) return "거의 다 왔어요!";
+    return "오늘 목표 달성! 🎉";
+  };
+
+  const dateStr = new Date().toLocaleDateString("ko-KR", {
+    month: "long", day: "numeric", weekday: "long",
+  });
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+    <SafeAreaView className="flex-1 bg-slate-50">
+      <ScrollView showsVerticalScrollIndicator={false}>
+
         {/* 헤더 */}
-        <View className="px-6 pt-4 pb-2 flex-row justify-between items-center">
+        <View className="px-6 pt-6 pb-2 flex-row justify-between items-start">
           <View>
-            <Text className="text-gray-400 text-sm">{dateStr}</Text>
-            <Text className="text-gray-900 text-xl font-bold">오늘의 걸음</Text>
+            <Text className="text-slate-400 text-sm font-medium">{dateStr}</Text>
+            <Text className="text-slate-900 text-2xl font-bold mt-0.5">{getGreeting()}</Text>
           </View>
-          <View className="bg-accent/10 px-3 py-1.5 rounded-full flex-row items-center gap-1">
-            <Text className="text-accent font-bold text-sm">🏅 {totalPoints.toLocaleString()}P</Text>
+          <View
+            className="bg-amber-400 px-3 py-1.5 rounded-full"
+            style={{ elevation: 2 }}
+          >
+            <Text className="text-white text-sm font-bold">🏅 {totalPoints.toLocaleString()}P</Text>
           </View>
         </View>
 
-        {/* 원형 진행 */}
-        <View className="items-center py-8">
-          <CircleProgress size={220} progress={progress} strokeWidth={18}>
+        {/* 메인 카드 */}
+        <View
+          className="mx-6 mt-4 bg-white rounded-3xl p-6"
+          style={{ elevation: 3 }}
+        >
+          {/* 원형 진행 */}
+          <View className="items-center py-2">
+            <CircleProgress size={200} progress={progress} strokeWidth={16} color="#22C55E" bgColor="#F1F5F9">
+              <View className="items-center">
+                <Text className="text-[42px] font-bold text-slate-900 leading-tight">
+                  {todaySteps.toLocaleString()}
+                </Text>
+                <Text className="text-slate-400 text-sm">걸음</Text>
+                <Text className="text-emerald-500 font-semibold text-sm mt-1">
+                  {Math.round(progress * 100)}% 달성
+                </Text>
+              </View>
+            </CircleProgress>
+          </View>
+
+          {/* 동기 메시지 */}
+          <View className="items-center mt-3 mb-5">
+            <Text className="text-slate-500 text-sm">{motivationText()}</Text>
+          </View>
+
+          {/* 구분선 */}
+          <View className="bg-slate-100 h-px mb-5" />
+
+          {/* 통계 3개 */}
+          <View className="flex-row justify-around">
             <View className="items-center">
-              <Text className="text-5xl font-bold text-gray-900">{todaySteps.toLocaleString()}</Text>
-              <Text className="text-gray-400 text-sm mt-1">걸음</Text>
-              <Text className="text-primary font-semibold text-base mt-1">{progressPercent}%</Text>
+              <Text className="text-2xl font-bold text-slate-900">{calories}</Text>
+              <Text className="text-slate-400 text-xs mt-0.5">kcal</Text>
             </View>
-          </CircleProgress>
-        </View>
-
-        {/* 동기 메시지 */}
-        <View className="mx-6 bg-primary/10 rounded-2xl px-4 py-3 mb-6">
-          <Text className="text-primary-dark font-medium text-center text-sm">{getMotivationMessage()}</Text>
-        </View>
-
-        {/* 통계 카드 */}
-        <View className="mx-6 flex-row gap-3 mb-6">
-          <View className="flex-1 bg-white rounded-2xl p-4 shadow-sm items-center">
-            <Text className="text-2xl mb-1">🎯</Text>
-            <Text className="text-gray-900 font-bold text-base">{dailyGoal.toLocaleString()}</Text>
-            <Text className="text-gray-400 text-xs">오늘 목표</Text>
-          </View>
-          <View className="flex-1 bg-white rounded-2xl p-4 shadow-sm items-center">
-            <Text className="text-2xl mb-1">🔥</Text>
-            <Text className="text-gray-900 font-bold text-base">{Math.round(todaySteps * 0.04)}</Text>
-            <Text className="text-gray-400 text-xs">칼로리(kcal)</Text>
-          </View>
-          <View className="flex-1 bg-white rounded-2xl p-4 shadow-sm items-center">
-            <Text className="text-2xl mb-1">📍</Text>
-            <Text className="text-gray-900 font-bold text-base">{(todaySteps * 0.0007).toFixed(1)}</Text>
-            <Text className="text-gray-400 text-xs">거리(km)</Text>
+            <View className="w-px bg-slate-100" />
+            <View className="items-center">
+              <Text className="text-2xl font-bold text-slate-900">{distance}</Text>
+              <Text className="text-slate-400 text-xs mt-0.5">km</Text>
+            </View>
+            <View className="w-px bg-slate-100" />
+            <View className="items-center">
+              <Text className="text-2xl font-bold text-slate-900">{dailyGoal.toLocaleString()}</Text>
+              <Text className="text-slate-400 text-xs mt-0.5">목표</Text>
+            </View>
           </View>
         </View>
 
-        {/* 주간 요약 */}
-        <View className="mx-6 bg-white rounded-2xl p-4 shadow-sm mb-6">
-          <Text className="text-gray-900 font-semibold mb-3">이번 주 총 걸음</Text>
+        {/* 주간 요약 카드 */}
+        <View
+          className="mx-6 mt-4 bg-emerald-500 rounded-3xl p-5"
+          style={{ elevation: 3 }}
+        >
+          <Text className="text-emerald-100 text-sm font-medium mb-1">이번 주 총 걸음</Text>
           <View className="flex-row items-baseline gap-2">
-            <Text className="text-3xl font-bold text-secondary">{weeklySteps.toLocaleString()}</Text>
-            <Text className="text-gray-400 text-sm">걸음</Text>
+            <Text className="text-white text-3xl font-bold">{weeklySteps.toLocaleString()}</Text>
+            <Text className="text-emerald-200 text-sm">걸음</Text>
           </View>
+          <Text className="text-emerald-100 text-xs mt-1">
+            ≈ {(weeklySteps * 0.0007).toFixed(1)}km · {Math.round(weeklySteps * 0.04)}kcal
+          </Text>
         </View>
 
-        <View className="h-4" />
+        <View className="h-6" />
       </ScrollView>
 
-      {/* 배너 광고 */}
-      <View className="items-center">
+      <View className="items-center bg-white border-t border-slate-100">
         <AppBannerAd />
       </View>
     </SafeAreaView>
