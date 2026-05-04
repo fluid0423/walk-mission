@@ -11,7 +11,9 @@ import MissionScreen from "./src/screens/MissionScreen";
 import CalendarScreen from "./src/screens/CalendarScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 
-mobileAds().initialize();
+mobileAds()
+  .setRequestConfiguration({ testDeviceIdentifiers: ["EMULATOR"] })
+  .then(() => mobileAds().initialize());
 
 const Tab = createBottomTabNavigator();
 
