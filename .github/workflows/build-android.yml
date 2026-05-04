@@ -34,10 +34,16 @@ jobs:
             --platform android \
             --profile preview \
             --non-interactive \
-            --wait \
-            --json 2>/dev/null > build-result.json
-          APK_URL=$(jq -r '.artifacts.buildUrl' build-result.json)
-          echo "APK_URL=$APK_URL" >> $GITHUB_ENV
+            --wait
+
+          APK_URL=$(eas build:list \
+            --platform android \
+            --limit 1 \
+            --status finished \
+            --non-interactive \
+            --json | jq -r '.[0].artifacts.buildUrl')
+
+          echo "APK_URL=$APK_URL"
           curl -L "$APK_URL" -o walk-mission.apk
 
       - name: Upload APK artifact
